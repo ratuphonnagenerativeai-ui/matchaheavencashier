@@ -1,0 +1,8 @@
+{
+  "name": "Matcha Heaven POS - Mobile Cashier & Invoicing",
+  "description": "Landing page resmi dan demo interaktif aplikasi kasir mobile Matcha Heaven Café dengan pencatatan invoice otomatis, analitik penjualan real-time, dan integrasi cetak struk.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
