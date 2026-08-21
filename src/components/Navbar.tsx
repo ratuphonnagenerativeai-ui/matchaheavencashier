@@ -13,7 +13,8 @@ import {
   Download,
   Lock,
   UserCheck,
-  User
+  User,
+  Boxes
 } from 'lucide-react';
 import { UserRole, CashierProfile, AttendanceRecord } from '../types';
 
@@ -50,6 +51,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const navLinks = [
     { name: 'Fitur Kasir', href: '#features', icon: Smartphone },
     { name: 'Demo POS Interaktif', href: '#simulator', icon: Receipt, badge: 'Live POS' },
+    { name: 'Stok & Inventaris', href: '#inventory', icon: Boxes, badge: '48 SKU' },
     { name: 'Laporan & Audit', href: '#analytics', icon: BarChart3, badge: currentRole === 'owner' ? 'Owner' : 'Terkunci' },
     { name: 'Cetak Struk', href: '#printer', icon: Printer },
     { name: 'Brand & Filosofi', href: '#brand', icon: Sparkles },

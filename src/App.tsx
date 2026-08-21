@@ -4,6 +4,7 @@ import { HeroSection } from './components/HeroSection';
 import { FeatureGrid } from './components/FeatureGrid';
 import { InteractivePOSSimulator } from './components/InteractivePOSSimulator';
 import { RealTimeAnalyticsSection } from './components/RealTimeAnalyticsSection';
+import { InventorySection } from './components/InventorySection';
 import { ReceiptPrinterIntegrationSection } from './components/ReceiptPrinterIntegrationSection';
 import { BrandAestheticShowcase } from './components/BrandAestheticShowcase';
 import { HardwareSpecsSection } from './components/HardwareSpecsSection';
@@ -12,13 +13,15 @@ import { DownloadAppModal } from './components/DownloadAppModal';
 import { RoleAuthModal } from './components/RoleAuthModal';
 import { CashierAttendanceModal } from './components/CashierAttendanceModal';
 import { Footer } from './components/Footer';
-import { INITIAL_INVOICES, INITIAL_SALES_ANALYTICS, CASHIERS_LIST, INITIAL_ATTENDANCE } from './data/mockData';
-import { Invoice, SalesAnalytics, UserRole, CashierProfile, AttendanceRecord } from './types';
+import { INITIAL_INVOICES, INITIAL_SALES_ANALYTICS, CASHIERS_LIST, INITIAL_ATTENDANCE, INITIAL_INVENTORY_ITEMS, INITIAL_STOCK_MOVEMENTS } from './data/mockData';
+import { Invoice, SalesAnalytics, UserRole, CashierProfile, AttendanceRecord, InventoryItem, StockMovement } from './types';
 import { CheckCircle2, Sparkles, X, ShieldAlert, UserCheck } from 'lucide-react';
 
 export default function App() {
   const [invoices, setInvoices] = useState<Invoice[]>(INITIAL_INVOICES);
   const [analytics, setAnalytics] = useState<SalesAnalytics>(INITIAL_SALES_ANALYTICS);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(INITIAL_INVENTORY_ITEMS);
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>(INITIAL_STOCK_MOVEMENTS);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState<boolean>(false);
   const [recentNotification, setRecentNotification] = useState<string | null>(null);
 
@@ -33,6 +36,56 @@ export default function App() {
   const activeAttendance = attendanceList.find(
     att => att.cashierId === currentUser.id && att.status === 'Aktif Bertugas'
   ) || null;
+
+  const handleUpdateStock = (
+    code: string, 
+    newStock: number, 
+    movementType: 'IN' | 'OUT' | 'ADJUSTMENT', 
+    quantity: number, 
+    reason: string, 
+    actor: string
+  ) => {
+    let targetName = '';
+    let targetUnit = '';
+
+    setInventoryItems(prev => prev.map(it => {
+      if (it.code === code) {
+        targetName = it.name;
+        targetUnit = it.unit;
+        const updatedStatus = newStock <= it.minStock ? 'Menipis' : 'Aman';
+        return {
+          ...it,
+          currentStock: newStock,
+          status: updatedStatus,
+          lastUpdated: 'Baru saja'
+        };
+      }
+      return it;
+    }));
+
+    // Record stock movement
+    const now = new Date();
+    const newMovement: StockMovement = {
+      id: `mov-${Date.now()}`,
+      itemCode: code,
+      itemName: targetName || code,
+      type: movementType,
+      quantity: quantity,
+      unit: targetUnit || 'unit',
+      timestamp: Date.now(),
+      dateStr: `Hari ini, ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`,
+      reason: reason,
+      actor: actor,
+      referenceDoc: movementType === 'IN' ? `PO-${Date.now().toString().slice(-4)}` : `OP-${Date.now().toString().slice(-4)}`
+    };
+
+    setStockMovements(prev => [newMovement, ...prev]);
+
+    setRecentNotification(`📦 Stok ${code} (${targetName}) berhasil diperbarui menjadi ${newStock} ${targetUnit}!`);
+    setTimeout(() => {
+      setRecentNotification(null);
+    }, 4500);
+  };
 
   const handleNewTransaction = (newInvoice: Invoice) => {
     // Prepend new invoice
@@ -72,7 +125,58 @@ export default function App() {
       };
     });
 
-    setRecentNotification(`Transaksi ${newInvoice.invoiceNumber} berhasil dicatat & struk thermal diproses!`);
+    // Auto Deduct relevant ingredients from Inventory (Live Recipe Consumption)
+    setInventoryItems(prev => {
+      return prev.map(item => {
+        let deductAmount = 0;
+        newInvoice.items.forEach(invItem => {
+          const qty = invItem.quantity;
+          const itemNameLower = invItem.name.toLowerCase();
+
+          // Matcha Powder deduction (15g per cup)
+          if (item.code === 'INV001' && itemNameLower.includes('matcha')) {
+            deductAmount += 15 * qty;
+          }
+          // Susu UHT deduction (120ml per drink)
+          if (item.code === 'INV002' && (itemNameLower.includes('latte') || itemNameLower.includes('milk') || itemNameLower.includes('matcha'))) {
+            deductAmount += 120 * qty;
+          }
+          // Cups 16oz (1 per drink)
+          if (item.code === 'PK001' && !itemNameLower.includes('bowl') && !itemNameLower.includes('box')) {
+            deductAmount += 1 * qty;
+          }
+          // Lids (1 per drink)
+          if (item.code === 'PK003' && !itemNameLower.includes('bowl') && !itemNameLower.includes('box')) {
+            deductAmount += 1 * qty;
+          }
+          // Straws (1 per drink)
+          if (item.code === 'PK004' && !itemNameLower.includes('bowl') && !itemNameLower.includes('box')) {
+            deductAmount += 1 * qty;
+          }
+          // Rice for main course (150g per bowl)
+          if (item.code === 'INV026' && (itemNameLower.includes('rice') || itemNameLower.includes('nasi') || itemNameLower.includes('katsu'))) {
+            deductAmount += 0.15 * qty; // 0.15 kg
+          }
+          // Chicken Katsu pcs
+          if (item.code === 'INV029' && itemNameLower.includes('katsu')) {
+            deductAmount += 1 * qty;
+          }
+        });
+
+        if (deductAmount > 0) {
+          const nextStock = Math.max(0, Math.round((item.currentStock - deductAmount) * 100) / 100);
+          return {
+            ...item,
+            currentStock: nextStock,
+            status: nextStock <= item.minStock ? 'Menipis' : 'Aman',
+            lastUpdated: 'Baru saja (POS Otomatis)'
+          };
+        }
+        return item;
+      });
+    });
+
+    setRecentNotification(`Transaksi ${newInvoice.invoiceNumber} berhasil dicatat! Bahan baku & kemasan otomatis terpotong.`);
     setTimeout(() => {
       setRecentNotification(null);
     }, 4500);
@@ -188,7 +292,17 @@ export default function App() {
           onOpenRoleModal={() => setIsRoleModalOpen(true)}
         />
 
-        {/* 4. Real-time Sales Reporting & Invoice Ledger (Role Guarded) */}
+        {/* 4. Complete Inventory Management & Warehouse Section */}
+        <InventorySection
+          inventoryItems={inventoryItems}
+          stockMovements={stockMovements}
+          onUpdateStock={handleUpdateStock}
+          currentRole={currentRole}
+          currentCashier={currentUser}
+          onOpenRoleModal={() => setIsRoleModalOpen(true)}
+        />
+
+        {/* 5. Real-time Sales Reporting & Invoice Ledger (Role Guarded) */}
         <RealTimeAnalyticsSection
           invoices={invoices}
           analytics={analytics}

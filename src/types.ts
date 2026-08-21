@@ -113,3 +113,35 @@ export interface PrinterSettings {
   wifiPass: string;
   instagramHandle: string;
 }
+
+export type InventoryType = 'beverage' | 'main-course' | 'packaging';
+
+export interface InventoryItem {
+  code: string;
+  name: string;
+  type: InventoryType;
+  category: string;
+  unit: string;
+  initialStock: number;
+  currentStock: number;
+  minStock: number;
+  unitPrice: number;
+  supplier: string;
+  status: 'Aman' | 'Menipis' | 'Kritis';
+  lastUpdated?: string;
+  storageLocation?: string;
+}
+
+export interface StockMovement {
+  id: string;
+  itemCode: string;
+  itemName: string;
+  type: 'IN' | 'OUT' | 'ADJUSTMENT';
+  quantity: number;
+  unit: string;
+  timestamp: number;
+  dateStr: string;
+  reason: string;
+  actor: string;
+  referenceDoc?: string;
+}
